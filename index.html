@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Rent & Service SuperApp</title>
+    
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3b82f6', // Синий сдержанный
+                        darkBg: '#111827',
+                        darkCard: '#1f2937',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        /* Скрываем скроллбар для эстетики */
+        ::-webkit-scrollbar {
+            width: 0px;
+            background: transparent;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-900 dark:bg-darkBg dark:text-gray-100 transition-colors duration-200">
+
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo } = React;
+        const tg = window.Telegram.WebApp;
+
+        // --- MOCK DATA / БАЗА ДАННЫХ ---
+        
+        const CITIES = [
+            { id: 'msk', name_ru: 'Москва', name_en: 'Moscow', flag: '🇷🇺', currency: 'RUB' },
+            { id: 'baku', name_ru: 'Баку', name_en: 'Baku', flag: '🇦🇿', currency: 'AZN' },
+            { id: 'dxb', name_ru: 'Дубай', name_en: 'Dubai', flag: '🇦🇪', currency: 'AED' },
+        ];
+
+        const CATEGORIES = [
+            { id: 'auto', name_ru: 'Авто', name_en: 'Auto', icon: 'Car' },
+            { id: 'real_estate', name_ru: 'Жилье', name_en: 'Real Estate', icon: 'Home' },
+            { id: 'food', name_ru: 'Рестораны', name_en: 'Dining', icon: 'Utensils' },
+        ];
+
+        const TIERS = {
+            auto: ['economy', 'comfort', 'premium'],
+            real_estate: ['economy', 'comfort', 'premium'],
+            food: ['$', '$$', '$$$']
+        };
+
+        const ITEMS = [
+            // AUTO
+            { id: 1, type: 'auto', tier: 'economy', city: 'msk', title: 'Hyundai Solaris', price: 2500, rating: 4.8, reviews: 120, partner: 'CityDrive', image: 'https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?auto=format&fit=crop&w=500&q=60' },
+            { id: 2, type: 'auto', tier: 'premium', city: 'msk', title: 'Mercedes E-Class', price: 8000, rating: 5.0, reviews: 45, partner: 'EliteCars', image: 'https://images.unsplash.com/photo-1617788138017-80ad40651399?auto=format&fit=crop&w=500&q=60' },
+            { id: 3, type: 'auto', tier: 'comfort', city: 'baku', title: 'Toyota Camry', price: 60, rating: 4.7, reviews: 89, partner: 'BakuRent', image: 'https://images.unsplash.com/photo-1626077388041-33311f8560f7?auto=format&fit=crop&w=500&q=60' },
+            // REAL ESTATE
+            { id: 4, type: 'real_estate', tier: 'premium', city: 'dxb', title: 'Marina View Loft', price: 1200, rating: 4.9, reviews: 320, partner: 'DubaiStay', image: 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=500&q=60' },
+            { id: 5, type: 'real_estate', tier: 'economy', city: 'msk', title: 'Студия у МКАД', price: 2000, rating: 4.2, reviews: 12, partner: 'HomeAway', image: 'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=500&q=60' },
+            // FOOD
+            { id: 6, type: 'food', tier: '$$$', city: 'baku', title: 'Chinar', price: 150, rating: 4.9, reviews: 500, partner: 'Saffron Group', image: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=500&q=60' },
+        ];
+
+        const TRANSLATIONS = {
+            ru: {
+                select_lang: "Выберите язык",
+                select_city: "Выберите город",
+                continue: "Продолжить",
+                search: "Поиск...",
+                economy: "Эконом",
+                comfort: "Комфорт",
+                premium: "Премиум",
+                book: "Забронировать",
+                reviews: "отзывов",
+                partner: "Партнер",
+                total: "Итого",
+                success: "Успешно!",
+                success_desc: "Ваша заявка отправлена партнеру.",
+                days: "суток",
+                per_day: "/ сутки",
+                per_visit: "/ чек",
+                back: "Назад"
+            },
+            en: {
+                select_lang: "Select Language",
+                select_city: "Select City",
+                continue: "Continue",
+                search: "Search...",
+                economy: "Economy",
+                comfort: "Comfort",
+                premium: "Premium",
+                book: "Book Now",
+                reviews: "reviews",
+                partner: "Partner",
+                total: "Total",
+                success: "Success!",
+                success_desc: "Your request has been sent to the partner.",
+                days: "days",
+                per_day: "/ day",
+                per_visit: "/ avg bill",
+                back: "Back"
+            }
+        };
+
+        // --- COMPONENTS ---
+
+        // Иконка (обертка над Lucide)
+        const Icon = ({ name, size = 20, className }) => {
+            useEffect(() => {
+                lucide.createIcons();
+            }, [name]);
+            return <i data-lucide={name} width={size} height={size} className={className}></i>;
+        };
+
+        // Экран приветствия (Настройка)
+        const Onboarding = ({ onComplete }) => {
+            const [lang, setLang] = useState('ru');
+            const [city, setCity] = useState(CITIES[0]);
+
+            return (
+                <div className="flex flex-col items-center justify-center min-h-screen p-6 space-y-8 animate-fade-in">
+                    <h1 className="text-2xl font-bold">Welcome / Добро пожаловать</h1>
+                    
+                    <div className="w-full max-w-xs space-y-4">
+                        <label className="text-sm font-medium text-gray-500 block">Language / Язык</label>
+                        <div className="grid grid-cols-2 gap-2 bg-gray-200 dark:bg-gray-800 p-1 rounded-xl">
+                            <button onClick={() => setLang('ru')} className={`p-2 rounded-lg text-sm font-medium transition-all ${lang === 'ru' ? 'bg-white dark:bg-gray-600 shadow' : ''}`}>Русский</button>
+                            <button onClick={() => setLang('en')} className={`p-2 rounded-lg text-sm font-medium transition-all ${lang === 'en' ? 'bg-white dark:bg-gray-600 shadow' : ''}`}>English</button>
+                        </div>
+                    </div>
+
+                    <div className="w-full max-w-xs space-y-4">
+                        <label className="text-sm font-medium text-gray-500 block">{lang === 'ru' ? 'Город' : 'City'}</label>
+                        <div className="space-y-2">
+                            {CITIES.map(c => (
+                                <button 
+                                    key={c.id} 
+                                    onClick={() => setCity(c)}
+                                    className={`w-full flex items-center justify-between p-4 rounded-xl border transition-all ${city.id === c.id ? 'border-primary bg-primary/10' : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-darkCard'}`}
+                                >
+                                    <span className="flex items-center gap-3">
+                                        <span className="text-2xl">{c.flag}</span>
+                                        <span className="font-medium">{lang === 'ru' ? c.name_ru : c.name_en}</span>
+                                    </span>
+                                    {city.id === c.id && <Icon name="check" className="text-primary" />}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    <button 
+                        onClick={() => onComplete(lang, city)}
+                        className="w-full max-w-xs bg-primary text-white py-4 rounded-xl font-bold text-lg shadow-lg active:scale-95 transition-transform"
+                    >
+                        {lang === 'ru' ? 'Начать' : 'Start'}
+                    </button>
+                </div>
+            );
+        };
+
+        // Карточка товара
+        const ItemCard = ({ item, t, currency, onClick }) => {
+            return (
+                <div onClick={onClick} className="bg-white dark:bg-darkCard rounded-2xl p-3 shadow-sm mb-4 cursor-pointer active:opacity-90 transition-opacity">
+                    <div className="relative h-40 w-full mb-3">
+                        <img src={item.image} className="w-full h-full object-cover rounded-xl" alt={item.title} />
+                        <div className="absolute top-2 right-2 bg-white/90 dark:bg-black/70 backdrop-blur px-2 py-1 rounded-lg text-xs font-bold flex items-center gap-1">
+                            <Icon name="star" size={12} className="text-yellow-500 fill-yellow-500" />
+                            {item.rating}
+                        </div>
+                    </div>
+                    <div className="flex justify-between items-start">
+                        <div>
+                            <h3 className="font-bold text-lg leading-tight">{item.title}</h3>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{t.partner}: {item.partner}</p>
+                        </div>
+                        <div className="text-right">
+                            <span className="block font-bold text-primary">{item.price} {currency}</span>
+                            <span className="text-[10px] text-gray-400">{item.type === 'food' ? t.per_visit : t.per_day}</span>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // Детальный экран
+        const DetailView = ({ item, t, currency, onClose, onBook }) => {
+            const [days, setDays] = useState(1);
+            
+            return (
+                <div className="fixed inset-0 bg-gray-50 dark:bg-darkBg z-50 overflow-y-auto animate-slide-up">
+                    <div className="relative h-64">
+                        <img src={item.image} className="w-full h-full object-cover" />
+                        <button onClick={onClose} className="absolute top-4 left-4 bg-white/50 dark:bg-black/50 p-2 rounded-full backdrop-blur">
+                            <Icon name="chevron-left" />
+                        </button>
+                    </div>
+                    
+                    <div className="-mt-6 relative bg-gray-50 dark:bg-darkBg rounded-t-3xl p-6 min-h-screen">
+                        <div className="flex justify-between items-start mb-2">
+                            <div>
+                                <span className="text-xs font-bold text-primary bg-primary/10 px-2 py-1 rounded uppercase tracking-wider">{item.tier}</span>
+                                <h1 className="text-2xl font-bold mt-2">{item.title}</h1>
+                            </div>
+                            <div className="flex flex-col items-end">
+                                <span className="text-2xl font-bold text-primary">{item.price} {currency}</span>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 mb-6 text-sm text-gray-500">
+                            <Icon name="star" size={16} className="text-yellow-500 fill-yellow-500" />
+                            <span className="font-medium text-gray-900 dark:text-gray-100">{item.rating}</span>
+                            <span>• {item.reviews} {t.reviews}</span>
+                        </div>
+
+                        <div className="bg-white dark:bg-darkCard p-4 rounded-xl mb-6 flex items-center gap-4 shadow-sm">
+                            <div className="w-12 h-12 bg-gray-200 dark:bg-gray-700 rounded-full flex items-center justify-center">
+                                <Icon name="briefcase" className="text-gray-500" />
+                            </div>
+                            <div>
+                                <p className="text-xs text-gray-400 uppercase">{t.partner}</p>
+                                <p className="font-bold text-lg">{item.partner}</p>
+                            </div>
+                            <div className="ml-auto">
+                                <Icon name="shield-check" className="text-green-500" />
+                            </div>
+                        </div>
+
+                        {/* Калькулятор цены (если не еда) */}
+                        {item.type !== 'food' && (
+                            <div className="mb-8">
+                                <label className="block text-sm font-medium mb-3 text-gray-500">Длительность ({t.days})</label>
+                                <div className="flex items-center justify-between bg-white dark:bg-darkCard p-2 rounded-xl">
+                                    <button onClick={() => setDays(d => Math.max(1, d-1))} className="w-10 h-10 flex items-center justify-center bg-gray-100 dark:bg-gray-700 rounded-lg">-</button>
+                                    <span className="font-bold text-xl">{days}</span>
+                                    <button onClick={() => setDays(d => d+1)} className="w-10 h-10 flex items-center justify-center bg-gray-100 dark:bg-gray-700 rounded-lg">+</button>
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="border-t dark:border-gray-800 pt-6 mt-4">
+                            <div className="flex justify-between items-center mb-4">
+                                <span className="text-gray-500">{t.total}:</span>
+                                <span className="text-2xl font-bold">{item.type === 'food' ? '-' : (item.price * days)} {currency}</span>
+                            </div>
+                            <button 
+                                onClick={() => onBook(item, days, item.price * days)}
+                                className="w-full bg-primary text-white py-4 rounded-xl font-bold text-lg shadow-lg active:scale-95 transition-transform"
+                            >
+                                {t.book}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // Главное приложение
+        const App = () => {
+            const [view, setView] = useState('onboarding'); // onboarding, home, details, success
+            const [settings, setSettings] = useState({ lang: 'ru', city: null, theme: 'light' });
+            const [activeCategory, setActiveCategory] = useState('auto');
+            const [activeTier, setActiveTier] = useState('all');
+            const [selectedItem, setSelectedItem] = useState(null);
+
+            // Инициализация Telegram
+            useEffect(() => {
+                tg.ready();
+                tg.expand();
+                
+                // Авто-определение темы из Телеграм
+                const colorScheme = tg.colorScheme || 'light';
+                setSettings(prev => ({ ...prev, theme: colorScheme }));
+            }, []);
+
+            // Применение темы к HTML
+            useEffect(() => {
+                if (settings.theme === 'dark') {
+                    document.documentElement.classList.add('dark');
+                    tg.setHeaderColor('#111827');
+                } else {
+                    document.documentElement.classList.remove('dark');
+                    tg.setHeaderColor('#ffffff');
+                }
+            }, [settings.theme]);
+
+            // Обработка кнопки "Назад" в ТГ
+            useEffect(() => {
+                const handleBack = () => {
+                    if (view === 'details') {
+                        setSelectedItem(null);
+                        setView('home');
+                    } else if (view === 'success') {
+                        setView('home');
+                    }
+                };
+
+                if (view !== 'home' && view !== 'onboarding') {
+                    tg.BackButton.show();
+                    tg.BackButton.onClick(handleBack);
+                } else {
+                    tg.BackButton.hide();
+                }
+
+                return () => tg.BackButton.offClick(handleBack);
+            }, [view]);
+
+            const t = TRANSLATIONS[settings.lang];
+
+            const toggleTheme = () => {
+                setSettings(prev => ({ ...prev, theme: prev.theme === 'light' ? 'dark' : 'light' }));
+            };
+
+            const filteredItems = useMemo(() => {
+                if (!settings.city) return [];
+                return ITEMS.filter(item => {
+                    const matchCity = item.city === settings.city.id;
+                    const matchCat = item.type === activeCategory;
+                    const matchTier = activeTier === 'all' || item.tier === activeTier;
+                    return matchCity && matchCat && matchTier;
+                });
+            }, [settings.city, activeCategory, activeTier]);
+
+            const handleBook = (item, days, total) => {
+                // Здесь логика отправки данных боту
+                const data = {
+                    action: 'book',
+                    item_id: item.id,
+                    partner: item.partner,
+                    days: days,
+                    total: total,
+                    currency: settings.city.currency
+                };
+                // tg.sendData(JSON.stringify(data)); // Раскомментировать для продакшена
+                setView('success');
+            };
+
+            if (view === 'onboarding') {
+                return <Onboarding onComplete={(lang, city) => {
+                    setSettings(prev => ({ ...prev, lang, city }));
+                    setView('home');
+                }} />;
+            }
+
+            if (view === 'success') {
+                return (
+                    <div className="flex flex-col items-center justify-center min-h-screen p-6 text-center animate-fade-in">
+                        <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mb-6">
+                            <Icon name="check" size={40} className="text-green-600" />
+                        </div>
+                        <h2 className="text-2xl font-bold mb-2">{t.success}</h2>
+                        <p className="text-gray-500 mb-8">{t.success_desc}</p>
+                        <button onClick={() => setView('home')} className="bg-gray-200 dark:bg-gray-800 text-gray-900 dark:text-white px-8 py-3 rounded-xl font-medium">
+                            {t.back}
+                        </button>
+                    </div>
+                )
+            }
+
+            return (
+                <div className="pb-20 min-h-screen">
+                    {/* Header */}
+                    <div className="flex items-center justify-between p-4 sticky top-0 bg-gray-50/90 dark:bg-darkBg/90 backdrop-blur z-10">
+                        <div className="flex items-center gap-2">
+                            <span className="text-3xl">{settings.city.flag}</span>
+                            <div>
+                                <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">{settings.lang === 'ru' ? settings.city.name_ru : settings.city.name_en}</p>
+                                <p className="font-bold text-lg leading-none">SuperApp</p>
+                            </div>
+                        </div>
+                        <button onClick={toggleTheme} className="p-2 bg-white dark:bg-gray-700 rounded-full shadow-sm">
+                            <Icon name={settings.theme === 'light' ? 'moon' : 'sun'} size={20} />
+                        </button>
+                    </div>
+
+                    {/* Category Tabs */}
+                    <div className="flex gap-4 px-4 mb-6 overflow-x-auto">
+                        {CATEGORIES.map(cat => (
+                            <button 
+                                key={cat.id}
+                                onClick={() => { setActiveCategory(cat.id); setActiveTier('all'); }}
+                                className={`flex flex-col items-center justify-center min-w-[80px] h-20 rounded-2xl transition-all ${activeCategory === cat.id ? 'bg-primary text-white shadow-lg scale-105' : 'bg-white dark:bg-darkCard text-gray-400'}`}
+                            >
+                                <Icon name={cat.icon} size={24} className="mb-1" />
+                                <span className="text-xs font-medium">{settings.lang === 'ru' ? cat.name_ru : cat.name_en}</span>
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Tier Filters */}
+                    <div className="flex gap-2 px-4 mb-6 overflow-x-auto no-scrollbar">
+                        <button 
+                            onClick={() => setActiveTier('all')} 
+                            className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${activeTier === 'all' ? 'bg-gray-900 text-white dark:bg-white dark:text-black' : 'bg-gray-200 dark:bg-gray-800 text-gray-500'}`}
+                        >
+                            All
+                        </button>
+                        {TIERS[activeCategory].map(tier => (
+                            <button 
+                                key={tier}
+                                onClick={() => setActiveTier(tier)}
+                                className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap capitalize transition-colors ${activeTier === tier ? 'bg-gray-900 text-white dark:bg-white dark:text-black' : 'bg-gray-200 dark:bg-gray-800 text-gray-500'}`}
+                            >
+                                {tier}
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Items Grid */}
+                    <div className="px-4">
+                        {filteredItems.length === 0 ? (
+                            <div className="text-center py-10 text-gray-400">
+                                <Icon name="search-x" size={48} className="mx-auto mb-2 opacity-50" />
+                                <p>Nothing found in {settings.lang === 'ru' ? settings.city.name_ru : settings.city.name_en}</p>
+                            </div>
+                        ) : (
+                            filteredItems.map(item => (
+                                <ItemCard 
+                                    key={item.id} 
+                                    item={item} 
+                                    t={t} 
+                                    currency={settings.city.currency} 
+                                    onClick={() => { setSelectedItem(item); setView('details'); }} 
+                                />
+                            ))
+                        )}
+                    </div>
+
+                    {/* Render Detail View Modal */}
+                    {selectedItem && (
+                        <DetailView 
+                            item={selectedItem} 
+                            t={t} 
+                            currency={settings.city.currency} 
+                            onClose={() => { setSelectedItem(null); setView('home'); }}
+                            onBook={handleBook}
+                        />
+                    )}
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
