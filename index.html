@@ -3,371 +3,489 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Rent SuperApp</title>
-    
+    <title>Premium Rental App</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
     <script>
         tailwind.config = {
             darkMode: 'class',
             theme: {
                 extend: {
                     colors: {
-                        primary: '#3b82f6',
-                        darkBg: '#111827',
-                        darkCard: '#1f2937',
+                        primary: '#2563eb', // Royal Blue
+                        secondary: '#f59e0b', // Amber
+                        darkBg: '#0f172a',
+                        darkCard: '#1e293b',
                     }
                 }
             }
         }
     </script>
-    
-    <script src="https://unpkg.com/lucide@latest"></script>
-
     <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            -webkit-tap-highlight-color: transparent;
-        }
-        /* Скрываем скроллбар */
-        .no-scrollbar::-webkit-scrollbar {
-            display: none;
-        }
-        .no-scrollbar {
-            -ms-overflow-style: none;
-            scrollbar-width: none;
-        }
-        /* Анимации */
-        .fade-in { animation: fadeIn 0.3s ease-in-out; }
-        .slide-up { animation: slideUp 0.3s ease-out; }
-        
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; -webkit-tap-highlight-color: transparent; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .slide-up { animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+        .fade-in { animation: fadeIn 0.2s ease-in; }
         @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
     </style>
 </head>
-<body class="bg-gray-50 text-gray-900 dark:bg-darkBg dark:text-gray-100 transition-colors duration-200">
+<body class="bg-gray-100 text-gray-900 dark:bg-darkBg dark:text-gray-100 transition-colors duration-200">
 
-    <div id="app" class="min-h-screen pb-20"></div>
+    <div id="app" class="pb-24 min-h-screen"></div>
 
-    <div id="modal-container" class="hidden fixed inset-0 z-50">
-        <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" onclick="closeModal()"></div>
-        <div id="modal-content" class="absolute bottom-0 left-0 right-0 bg-white dark:bg-darkBg rounded-t-3xl min-h-[85vh] max-h-[95vh] overflow-y-auto slide-up shadow-2xl">
-            </div>
-    </div>
+    <div id="modal-backdrop" class="hidden fixed inset-0 bg-black/60 z-40 backdrop-blur-sm transition-opacity" onclick="closeModal()"></div>
+    <div id="modal-panel" class="hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-darkCard rounded-t-[32px] z-50 max-h-[92vh] overflow-y-auto shadow-2xl slide-up">
+        </div>
 
     <script>
         const tg = window.Telegram.WebApp;
         tg.expand();
+        tg.enableClosingConfirmation();
 
-        // --- ДАННЫЕ ---
-        const CITIES = [
-            { id: 'msk', name_ru: 'Москва', name_en: 'Moscow', flag: '🇷🇺', currency: 'RUB' },
-            { id: 'baku', name_ru: 'Баку', name_en: 'Baku', flag: '🇦🇿', currency: 'AZN' },
-            { id: 'dxb', name_ru: 'Дубай', name_en: 'Dubai', flag: '🇦🇪', currency: 'AED' },
-        ];
+        // --- 1. БАЗА ДАННЫХ ---
+        const DB = {
+            cities: [
+                { id: 'msk', name: { ru: 'Москва', en: 'Moscow' }, flag: '🇷🇺', currency: 'RUB' },
+                { id: 'baku', name: { ru: 'Баку', en: 'Baku' }, flag: '🇦🇿', currency: 'AZN' },
+                { id: 'dxb', name: { ru: 'Дубай', en: 'Dubai' }, flag: '🇦🇪', currency: 'AED' },
+            ],
+            partners: {
+                'p1': { name: 'Royal Cars', rating: 4.9, deals: 1200, verified: true },
+                'p2': { name: 'Baku Estate', rating: 4.7, deals: 340, verified: true },
+                'p3': { name: 'Ginza Project', rating: 4.8, deals: 5000, verified: true },
+                'p4': { name: 'Dubai Luxury', rating: 5.0, deals: 890, verified: true }
+            },
+            items: [
+                // --- АВТО (Москва) ---
+                { id: 101, city: 'msk', type: 'auto', tier: 'premium', title: 'BMW X5 M-Sport', price: 15000, image: 'https://images.unsplash.com/photo-1555215695-3004980adade?auto=format&fit=crop&w=800&q=80', partnerId: 'p1', specs: { year: '2023', engine: '3.0L Diesel', box: 'Auto', seats: 5 } },
+                { id: 102, city: 'msk', type: 'auto', tier: 'economy', title: 'Kia Rio X', price: 2800, image: 'https://images.unsplash.com/photo-1583121274602-3e2820c69888?auto=format&fit=crop&w=800&q=80', partnerId: 'p1', specs: { year: '2021', engine: '1.6L', box: 'Auto', seats: 5 } },
+                
+                // --- АВТО (Баку) ---
+                { id: 201, city: 'baku', type: 'auto', tier: 'premium', title: 'Mercedes G-Class', price: 500, image: 'https://images.unsplash.com/photo-1520031441872-265149a9e690?auto=format&fit=crop&w=800&q=80', partnerId: 'p2', specs: { year: '2022', engine: '4.0L V8', box: 'Auto', seats: 5 } },
+                { id: 202, city: 'baku', type: 'auto', tier: 'comfort', title: 'Toyota Prado', price: 120, image: 'https://images.unsplash.com/photo-1519641471654-76ce0107ad1b?auto=format&fit=crop&w=800&q=80', partnerId: 'p2', specs: { year: '2020', engine: '2.7L', box: 'Auto', seats: 7 } },
 
-        const TRANSLATIONS = {
-            ru: { start: "Начать", select_lang: "Язык", select_city: "Город", back: "Назад", book: "Забронировать", price: "Цена", total: "Итого", days: "Дней", success: "Успешно!", success_desc: "Заявка отправлена." },
-            en: { start: "Start", select_lang: "Language", select_city: "City", back: "Back", book: "Book Now", price: "Price", total: "Total", days: "Days", success: "Success!", success_desc: "Request sent." }
+                // --- НЕДВИЖИМОСТЬ (Баку) ---
+                { id: 203, city: 'baku', type: 'realty', tier: 'premium', title: 'Penthouse Port Baku', price: 350, image: 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=800&q=80', partnerId: 'p2', specs: { rooms: '4', area: '220m²', floor: '24/28', wifi: 'Yes' } },
+                
+                // --- РЕСТОРАНЫ (Баку) ---
+                { id: 204, city: 'baku', type: 'food', tier: '$$$', title: 'Mari Vanna', price: 80, image: 'https://images.unsplash.com/photo-1550966871-3ed3c6221741?auto=format&fit=crop&w=800&q=80', partnerId: 'p3', specs: { cuisine: 'Russian', time: '10:00 - 23:00', rating: 'Michelin Guide' } },
+
+                // --- НЕДВИЖИМОСТЬ (Дубай) ---
+                { id: 301, city: 'dxb', type: 'realty', tier: 'premium', title: 'Villa Palm Jumeirah', price: 2500, image: 'https://images.unsplash.com/photo-1613490493576-7fde63acd811?auto=format&fit=crop&w=800&q=80', partnerId: 'p4', specs: { rooms: '6', area: '600m²', pool: 'Private', beach: 'Direct' } },
+            ]
         };
 
-        const ITEMS = [
-            { id: 1, type: 'auto', tier: 'economy', city: 'msk', title: 'Hyundai Solaris', price: 2500, rating: 4.8, reviews: 120, partner: 'CityDrive', image: 'https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?auto=format&fit=crop&w=500&q=60' },
-            { id: 2, type: 'auto', tier: 'premium', city: 'msk', title: 'Mercedes E-Class', price: 8000, rating: 5.0, reviews: 45, partner: 'EliteCars', image: 'https://images.unsplash.com/photo-1617788138017-80ad40651399?auto=format&fit=crop&w=500&q=60' },
-            { id: 3, type: 'auto', tier: 'comfort', city: 'baku', title: 'Toyota Camry', price: 60, rating: 4.7, reviews: 89, partner: 'BakuRent', image: 'https://images.unsplash.com/photo-1626077388041-33311f8560f7?auto=format&fit=crop&w=500&q=60' },
-            { id: 4, type: 'real_estate', tier: 'premium', city: 'dxb', title: 'Marina View Loft', price: 1200, rating: 4.9, reviews: 320, partner: 'DubaiStay', image: 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=500&q=60' },
-            { id: 6, type: 'food', tier: '$$$', city: 'baku', title: 'Chinar', price: 150, rating: 4.9, reviews: 500, partner: 'Saffron Group', image: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=500&q=60' },
-        ];
+        const TEXT = {
+            ru: { 
+                tabs: { auto: 'Авто', realty: 'Жилье', food: 'Еда' },
+                tiers: { all: 'Все', economy: 'Эконом', comfort: 'Комфорт', premium: 'Премиум', '$$$': 'Люкс' },
+                btn_book: 'Забронировать',
+                btn_pay: 'Оплатить',
+                total: 'Итого',
+                days: 'Сутки',
+                guests: 'Персоны',
+                form_title: 'Ваши данные',
+                name_ph: 'Имя Фамилия',
+                phone_ph: 'Телефон',
+                comm_ph: 'Комментарий к заказу...',
+                pay_method: 'Способ оплаты',
+                success: 'Бронь подтверждена!',
+                partner: 'Партнер сервиса'
+            },
+            en: {
+                tabs: { auto: 'Auto', realty: 'Real Estate', food: 'Dining' },
+                tiers: { all: 'All', economy: 'Economy', comfort: 'Comfort', premium: 'Premium', '$$$': 'Luxury' },
+                btn_book: 'Book Now',
+                btn_pay: 'Pay Now',
+                total: 'Total',
+                days: 'Days',
+                guests: 'Guests',
+                form_title: 'Your Details',
+                name_ph: 'Full Name',
+                phone_ph: 'Phone Number',
+                comm_ph: 'Order comment...',
+                pay_method: 'Payment Method',
+                success: 'Booking Confirmed!',
+                partner: 'Service Partner'
+            }
+        };
 
-        // --- СОСТОЯНИЕ ---
+        // --- 2. STATE MANAGER ---
         let state = {
             lang: 'ru',
-            city: CITIES[1], // По умолчанию Баку
+            cityId: 'msk',
             category: 'auto',
             tier: 'all',
-            isOnboarding: true,
-            theme: tg.colorScheme || 'light'
+            theme: tg.colorScheme || 'light',
+            booking: { itemId: null, days: 1, form: {} }
         };
 
-        // --- ИНИЦИАЛИЗАЦИЯ ---
+        // --- 3. RENDERING CORE ---
+
         function init() {
+            renderApp();
+            lucide.createIcons();
             applyTheme();
-            render();
             
-            // Слушаем кнопку Назад
+            // Обработчик кнопки "Назад"
             tg.BackButton.onClick(() => {
-                closeModal();
+                const modal = document.getElementById('modal-backdrop');
+                if (!modal.classList.contains('hidden')) {
+                    closeModal();
+                }
             });
         }
 
         function applyTheme() {
             if (state.theme === 'dark') {
                 document.documentElement.classList.add('dark');
-                tg.setHeaderColor('#111827');
+                tg.setHeaderColor('#1e293b');
             } else {
                 document.documentElement.classList.remove('dark');
-                tg.setHeaderColor('#ffffff');
+                tg.setHeaderColor('#f3f4f6');
             }
         }
 
-        // --- РЕНДЕРИНГ ---
-        function render() {
-            const app = document.getElementById('app');
+        function toggleTheme() {
+            state.theme = state.theme === 'light' ? 'dark' : 'light';
+            applyTheme();
+        }
+
+        function renderApp() {
+            const currentCity = DB.cities.find(c => c.id === state.cityId);
+            const t = TEXT[state.lang];
+
+            const html = `
+                <header class="sticky top-0 z-30 bg-gray-100/90 dark:bg-darkBg/90 backdrop-blur-md px-4 py-3 pb-0">
+                    <div class="flex justify-between items-center mb-4">
+                        <div class="flex items-center gap-3" onclick="toggleCity()">
+                            <span class="text-4xl drop-shadow-sm cursor-pointer hover:scale-110 transition">${currentCity.flag}</span>
+                            <div>
+                                <div class="flex items-center gap-1 text-xs font-bold text-gray-500 uppercase tracking-widest cursor-pointer">
+                                    ${currentCity.name[state.lang]} <i data-lucide="chevron-down" class="w-3 h-3"></i>
+                                </div>
+                                <h1 class="text-xl font-bold dark:text-white">Rent Service</h1>
+                            </div>
+                        </div>
+                        <div class="flex gap-2">
+                             <button onclick="toggleLang()" class="w-10 h-10 rounded-full bg-white dark:bg-darkCard shadow-sm font-bold text-xs flex items-center justify-center dark:text-white border dark:border-gray-700">${state.lang.toUpperCase()}</button>
+                             <button onclick="toggleTheme()" class="w-10 h-10 rounded-full bg-white dark:bg-darkCard shadow-sm flex items-center justify-center dark:text-white border dark:border-gray-700">
+                                <i data-lucide="${state.theme === 'light' ? 'moon' : 'sun'}" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="flex gap-4 overflow-x-auto no-scrollbar pb-4">
+                        ${renderTab('auto', 'car', t.tabs.auto)}
+                        ${renderTab('realty', 'home', t.tabs.realty)}
+                        ${renderTab('food', 'utensils', t.tabs.food)}
+                    </div>
+                </header>
+
+                <div class="px-4 py-2 flex gap-2 overflow-x-auto no-scrollbar sticky top-[140px] z-20 bg-gradient-to-b from-gray-100 to-transparent dark:from-darkBg dark:to-transparent pb-6">
+                    ${renderFilter('all', t.tiers.all)}
+                    ${renderFilter('economy', t.tiers.economy)}
+                    ${renderFilter('comfort', t.tiers.comfort)}
+                    ${renderFilter('premium', t.tiers.premium)}
+                </div>
+
+                <main class="px-4 grid gap-5">
+                    ${renderList()}
+                </main>
+            `;
+
+            document.getElementById('app').innerHTML = html;
+            lucide.createIcons();
+        }
+
+        // --- COMPONENTS ---
+
+        function renderTab(id, icon, label) {
+            const active = state.category === id;
+            return `
+                <button onclick="setCategory('${id}')" class="flex-shrink-0 flex flex-col items-center justify-center w-20 h-20 rounded-2xl transition-all duration-300 ${active ? 'bg-primary text-white shadow-lg shadow-blue-500/30 scale-105' : 'bg-white dark:bg-darkCard text-gray-400 dark:text-gray-500'}">
+                    <i data-lucide="${icon}" class="w-6 h-6 mb-1"></i>
+                    <span class="text-[10px] font-bold uppercase">${label}</span>
+                </button>
+            `;
+        }
+
+        function renderFilter(id, label) {
+            const active = state.tier === id;
+            return `
+                <button onclick="setTier('${id}')" class="px-4 py-2 rounded-full text-xs font-bold transition-all ${active ? 'bg-gray-900 text-white dark:bg-white dark:text-black shadow-md' : 'bg-white dark:bg-darkCard text-gray-500 border dark:border-gray-700'}">
+                    ${label}
+                </button>
+            `;
+        }
+
+        function renderList() {
+            const list = DB.items.filter(i => 
+                i.city === state.cityId && 
+                i.type === state.category && 
+                (state.tier === 'all' || i.tier === i.tier && state.tier === i.tier) // Простая фильтрация, можно усложнить
+            );
+
+            if (list.length === 0) return `<div class="text-center py-20 opacity-50"><i data-lucide="ghost" class="w-12 h-12 mx-auto mb-2"></i><p>Пусто / Empty</p></div>`;
+
+            const currency = DB.cities.find(c => c.id === state.cityId).currency;
+
+            return list.map(item => `
+                <div onclick="openDetails(${item.id})" class="group bg-white dark:bg-darkCard rounded-[24px] p-3 shadow-sm hover:shadow-md transition-all cursor-pointer active:scale-[0.98]">
+                    <div class="relative h-48 w-full overflow-hidden rounded-[20px] mb-3">
+                        <img src="${item.image}" class="w-full h-full object-cover group-hover:scale-105 transition duration-500">
+                        <div class="absolute top-3 left-3 bg-white/20 backdrop-blur-md text-white text-[10px] font-bold px-2 py-1 rounded-lg uppercase border border-white/30">
+                            ${item.tier}
+                        </div>
+                        <div class="absolute bottom-3 right-3 bg-white dark:bg-black/80 text-gray-900 dark:text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-lg flex items-center gap-1">
+                            <i data-lucide="star" class="w-3 h-3 text-secondary fill-secondary"></i> 4.9
+                        </div>
+                    </div>
+                    <div class="px-2 pb-2">
+                        <div class="flex justify-between items-start mb-2">
+                            <h3 class="font-bold text-lg dark:text-white leading-tight w-2/3">${item.title}</h3>
+                            <div class="text-right">
+                                <span class="block font-bold text-primary text-lg">${item.price} <small class="text-xs text-gray-400">${currency}</small></span>
+                            </div>
+                        </div>
+                        ${renderSpecsRow(item.specs)}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderSpecsRow(specs) {
+            // Берем первые 3 характеристики для превью
+            const keys = Object.keys(specs).slice(0, 3);
+            return `
+                <div class="flex gap-2 mt-2">
+                    ${keys.map(k => `
+                        <span class="text-[10px] font-medium bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 px-2 py-1 rounded-md capitalize">
+                            ${specs[k]}
+                        </span>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        // --- ACTIONS ---
+        function setCategory(id) { state.category = id; state.tier = 'all'; renderApp(); }
+        function setTier(id) { state.tier = id; renderApp(); }
+        function toggleLang() { state.lang = state.lang === 'ru' ? 'en' : 'ru'; renderApp(); }
+        
+        function toggleCity() {
+            // Циклическое переключение городов для простоты
+            const idx = DB.cities.findIndex(c => c.id === state.cityId);
+            const next = DB.cities[(idx + 1) % DB.cities.length];
+            state.cityId = next.id;
+            renderApp();
+        }
+
+        // --- DETAILED VIEW & BOOKING FLOW ---
+
+        function openDetails(itemId) {
+            const item = DB.items.find(i => i.id === itemId);
+            const partner = DB.partners[item.partnerId];
+            const city = DB.cities.find(c => c.id === item.city);
+            const t = TEXT[state.lang];
             
-            if (state.isOnboarding) {
-                app.innerHTML = renderOnboarding();
-                lucide.createIcons();
-                tg.BackButton.hide();
+            state.booking = { itemId, days: 1, form: {} }; // Reset booking state
+
+            const modal = document.getElementById('modal-panel');
+            const backdrop = document.getElementById('modal-backdrop');
+            
+            // Рендер контента модалки
+            modal.innerHTML = `
+                <div class="relative">
+                    <div class="h-64 relative">
+                        <img src="${item.image}" class="w-full h-full object-cover">
+                        <button onclick="closeModal()" class="absolute top-4 right-4 bg-black/40 hover:bg-black/60 backdrop-blur text-white p-2 rounded-full transition">
+                            <i data-lucide="x" class="w-5 h-5"></i>
+                        </button>
+                    </div>
+
+                    <div class="p-6 relative -mt-6 bg-white dark:bg-darkCard rounded-t-[32px]">
+                        <div class="flex justify-between items-start mb-6">
+                            <div>
+                                <span class="text-[10px] font-bold text-primary bg-blue-50 dark:bg-blue-900/20 px-2 py-1 rounded uppercase">${item.type} • ${item.tier}</span>
+                                <h2 class="text-2xl font-bold mt-2 dark:text-white">${item.title}</h2>
+                            </div>
+                            <div class="text-right">
+                                <p class="text-2xl font-bold text-primary">${item.price}</p>
+                                <p class="text-xs text-gray-400 uppercase">${city.currency} / ${item.type === 'food' ? t.guests : t.days}</p>
+                            </div>
+                        </div>
+
+                        <div class="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-2xl mb-6 flex items-center justify-between">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 bg-white dark:bg-gray-700 rounded-full flex items-center justify-center shadow-sm text-gray-400">
+                                    <i data-lucide="briefcase" class="w-5 h-5"></i>
+                                </div>
+                                <div>
+                                    <p class="text-xs text-gray-400 uppercase font-bold">${t.partner}</p>
+                                    <p class="font-bold text-sm dark:text-gray-200 flex items-center gap-1">
+                                        ${partner.name} 
+                                        ${partner.verified ? '<i data-lucide="badge-check" class="w-3 h-3 text-blue-500 fill-blue-500"></i>' : ''}
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <div class="flex items-center gap-1 text-sm font-bold dark:text-white">
+                                    <i data-lucide="star" class="w-3 h-3 text-secondary fill-secondary"></i> ${partner.rating}
+                                </div>
+                                <p class="text-[10px] text-gray-400">${partner.deals} deals</p>
+                            </div>
+                        </div>
+
+                        <h3 class="text-sm font-bold text-gray-400 uppercase mb-3">Specifications</h3>
+                        <div class="grid grid-cols-2 gap-3 mb-8">
+                            ${Object.entries(item.specs).map(([key, val]) => `
+                                <div class="bg-gray-50 dark:bg-gray-800 p-3 rounded-xl">
+                                    <p class="text-[10px] text-gray-400 uppercase mb-1">${key}</p>
+                                    <p class="font-bold text-sm dark:text-gray-200">${val}</p>
+                                </div>
+                            `).join('')}
+                        </div>
+
+                        <button onclick="renderBookingForm(${item.id})" class="w-full bg-primary hover:bg-blue-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg shadow-blue-500/30 transition-all active:scale-95 flex items-center justify-center gap-2">
+                            ${t.btn_book} <i data-lucide="arrow-right" class="w-5 h-5"></i>
+                        </button>
+                    </div>
+                </div>
+            `;
+
+            backdrop.classList.remove('hidden');
+            modal.classList.remove('hidden');
+            tg.BackButton.show();
+            lucide.createIcons();
+        }
+
+        // ШАГ 2: Форма данных
+        function renderBookingForm(itemId) {
+            const item = DB.items.find(i => i.id === itemId);
+            const t = TEXT[state.lang];
+            const modal = document.getElementById('modal-panel');
+
+            // Калькулятор цены
+            const total = item.price * state.booking.days;
+            const currency = DB.cities.find(c => c.id === item.city).currency;
+
+            modal.innerHTML = `
+                <div class="p-6 h-[80vh] flex flex-col">
+                    <h2 class="text-2xl font-bold mb-6 dark:text-white">${t.form_title}</h2>
+                    
+                    <div class="flex items-center justify-between bg-gray-50 dark:bg-gray-800 p-4 rounded-2xl mb-6">
+                        <span class="text-sm font-bold text-gray-500">${item.type === 'food' ? t.guests : t.days}</span>
+                        <div class="flex items-center gap-4">
+                            <button onclick="updateDays(-1, ${item.price}, '${currency}')" class="w-8 h-8 rounded-full bg-white dark:bg-gray-700 shadow flex items-center justify-center font-bold text-lg dark:text-white">-</button>
+                            <span id="days-count" class="font-bold text-xl dark:text-white">${state.booking.days}</span>
+                            <button onclick="updateDays(1, ${item.price}, '${currency}')" class="w-8 h-8 rounded-full bg-white dark:bg-gray-700 shadow flex items-center justify-center font-bold text-lg dark:text-white">+</button>
+                        </div>
+                    </div>
+
+                    <div class="space-y-4 mb-6">
+                        <input type="text" id="inp-name" placeholder="${t.name_ph}" class="w-full p-4 rounded-xl bg-gray-50 dark:bg-gray-800 border-none focus:ring-2 focus:ring-primary dark:text-white outline-none">
+                        <input type="tel" id="inp-phone" placeholder="${t.phone_ph}" class="w-full p-4 rounded-xl bg-gray-50 dark:bg-gray-800 border-none focus:ring-2 focus:ring-primary dark:text-white outline-none">
+                        <textarea id="inp-comm" placeholder="${t.comm_ph}" rows="2" class="w-full p-4 rounded-xl bg-gray-50 dark:bg-gray-800 border-none focus:ring-2 focus:ring-primary dark:text-white outline-none resize-none"></textarea>
+                    </div>
+
+                    <div class="mt-auto">
+                        <div class="flex justify-between items-center mb-4 text-sm text-gray-500">
+                            <span>${t.total}:</span>
+                            <span id="total-display" class="text-2xl font-bold text-primary">${total} ${currency}</span>
+                        </div>
+                        <button onclick="renderPayment()" class="w-full bg-black dark:bg-white text-white dark:text-black py-4 rounded-xl font-bold text-lg shadow-lg transition-transform active:scale-95">
+                            ${t.btn_pay}
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        function updateDays(delta, price, currency) {
+            const newDays = state.booking.days + delta;
+            if (newDays < 1) return;
+            state.booking.days = newDays;
+            document.getElementById('days-count').innerText = newDays;
+            document.getElementById('total-display').innerText = (newDays * price) + ' ' + currency;
+        }
+
+        // ШАГ 3: Оплата
+        function renderPayment() {
+            // Валидация
+            const name = document.getElementById('inp-name').value;
+            const phone = document.getElementById('inp-phone').value;
+            if (!name || !phone) {
+                tg.showAlert('Please fill in your Name and Phone');
                 return;
             }
 
-            // Основной экран
-            app.innerHTML = `
-                ${renderHeader()}
-                ${renderTabs()}
-                ${renderFilters()}
-                ${renderGrid()}
-            `;
-            lucide.createIcons();
-            tg.BackButton.hide();
-        }
+            state.booking.form = { name, phone };
+            const t = TEXT[state.lang];
+            const modal = document.getElementById('modal-panel');
 
-        // 1. Экран приветствия
-        function renderOnboarding() {
-            const t = TRANSLATIONS[state.lang];
-            return `
-                <div class="flex flex-col items-center justify-center min-h-screen p-6 space-y-8 fade-in">
-                    <h1 class="text-3xl font-bold">Vroom App</h1>
+            modal.innerHTML = `
+                <div class="p-6 h-[60vh] flex flex-col items-center justify-center text-center">
+                    <h2 class="text-xl font-bold mb-8 dark:text-white">${t.pay_method}</h2>
                     
-                    <div class="w-full max-w-xs space-y-2">
-                        <label class="text-sm text-gray-500 font-medium">Language / Язык</label>
-                        <div class="grid grid-cols-2 gap-2 bg-gray-200 dark:bg-gray-800 p-1 rounded-xl">
-                            <button onclick="setLang('ru')" class="p-3 rounded-lg text-sm font-bold transition-all ${state.lang === 'ru' ? 'bg-white dark:bg-gray-600 shadow' : 'text-gray-500'}">RU</button>
-                            <button onclick="setLang('en')" class="p-3 rounded-lg text-sm font-bold transition-all ${state.lang === 'en' ? 'bg-white dark:bg-gray-600 shadow' : 'text-gray-500'}">EN</button>
-                        </div>
-                    </div>
-
-                    <div class="w-full max-w-xs space-y-2">
-                        <label class="text-sm text-gray-500 font-medium">${t.select_city}</label>
-                        <div class="space-y-2">
-                            ${CITIES.map(c => `
-                                <button onclick="setCity('${c.id}')" class="w-full flex items-center justify-between p-4 rounded-xl border transition-all ${state.city.id === c.id ? 'border-primary bg-primary/10 ring-1 ring-primary' : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-darkCard'}">
-                                    <span class="flex items-center gap-3">
-                                        <span class="text-2xl">${c.flag}</span>
-                                        <span class="font-medium text-lg">${state.lang === 'ru' ? c.name_ru : c.name_en}</span>
-                                    </span>
-                                    ${state.city.id === c.id ? '<i data-lucide="check" class="text-primary w-5 h-5"></i>' : ''}
-                                </button>
-                            `).join('')}
-                        </div>
-                    </div>
-
-                    <button onclick="finishOnboarding()" class="w-full max-w-xs bg-primary text-white py-4 rounded-xl font-bold text-lg shadow-lg active:scale-95 transition-transform mt-4">
-                        ${t.start}
-                    </button>
-                </div>
-            `;
-        }
-
-        // 2. Шапка
-        function renderHeader() {
-            return `
-                <div class="flex items-center justify-between p-4 sticky top-0 bg-gray-50/90 dark:bg-darkBg/90 backdrop-blur z-40">
-                    <div class="flex items-center gap-3">
-                        <span class="text-4xl shadow-sm rounded-full bg-white dark:bg-gray-800 w-12 h-12 flex items-center justify-center">${state.city.flag}</span>
-                        <div>
-                            <p class="text-xs text-gray-500 font-bold uppercase tracking-wider">${state.lang === 'ru' ? state.city.name_ru : state.city.name_en}</p>
-                            <p class="font-bold text-xl leading-none">Vroom</p>
-                        </div>
-                    </div>
-                    <button onclick="toggleTheme()" class="p-3 bg-white dark:bg-gray-700 rounded-full shadow-sm active:scale-90 transition-transform">
-                        <i data-lucide="${state.theme === 'light' ? 'moon' : 'sun'}" class="w-5 h-5"></i>
-                    </button>
-                </div>
-            `;
-        }
-
-        // 3. Табы категорий
-        function renderTabs() {
-            const cats = [
-                { id: 'auto', icon: 'car', label_ru: 'Авто', label_en: 'Auto' },
-                { id: 'real_estate', icon: 'home', label_ru: 'Жилье', label_en: 'Home' },
-                { id: 'food', icon: 'utensils', label_ru: 'Еда', label_en: 'Food' }
-            ];
-            
-            return `
-                <div class="flex gap-3 px-4 mb-6 overflow-x-auto no-scrollbar pb-2">
-                    ${cats.map(c => `
-                        <button onclick="setCategory('${c.id}')" class="flex flex-col items-center justify-center min-w-[85px] h-20 rounded-2xl transition-all duration-200 ${state.category === c.id ? 'bg-primary text-white shadow-lg scale-105' : 'bg-white dark:bg-darkCard text-gray-400'}">
-                            <i data-lucide="${c.icon}" class="mb-1 w-6 h-6"></i>
-                            <span class="text-xs font-bold">${state.lang === 'ru' ? c.label_ru : c.label_en}</span>
+                    <div class="grid gap-3 w-full mb-8">
+                        <button onclick="processPayment('apple')" class="flex items-center gap-4 p-4 rounded-xl bg-black text-white font-bold justify-center shadow-lg active:scale-95 transition">
+                              Apple Pay
                         </button>
-                    `).join('')}
-                </div>
-            `;
-        }
-
-        // 4. Фильтры
-        function renderFilters() {
-            const tiers = ['economy', 'comfort', 'premium'];
-            return `
-                <div class="flex gap-2 px-4 mb-6 overflow-x-auto no-scrollbar">
-                    <button onclick="setTier('all')" class="px-5 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-colors ${state.tier === 'all' ? 'bg-gray-900 text-white dark:bg-white dark:text-black' : 'bg-gray-200 dark:bg-gray-800 text-gray-500'}">All</button>
-                    ${tiers.map(t => `
-                        <button onclick="setTier('${t}')" class="px-5 py-2 rounded-full text-sm font-bold whitespace-nowrap capitalize transition-colors ${state.tier === t ? 'bg-gray-900 text-white dark:bg-white dark:text-black' : 'bg-gray-200 dark:bg-gray-800 text-gray-500'}">
-                            ${t}
+                        <button onclick="processPayment('card')" class="flex items-center gap-4 p-4 rounded-xl bg-blue-600 text-white font-bold justify-center shadow-lg active:scale-95 transition">
+                             <i data-lucide="credit-card" class="w-5 h-5"></i> Bank Card
                         </button>
-                    `).join('')}
-                </div>
-            `;
-        }
-
-        // 5. Сетка товаров
-        function renderGrid() {
-            const filtered = ITEMS.filter(item => 
-                item.city === state.city.id && 
-                item.type === state.category && 
-                (state.tier === 'all' || item.tier === state.tier)
-            );
-
-            if (filtered.length === 0) {
-                return `<div class="text-center py-20 text-gray-400 px-10">
-                    <i data-lucide="search-x" class="w-16 h-16 mx-auto mb-4 opacity-50"></i>
-                    <p>Ничего не найдено в этой категории</p>
-                </div>`;
-            }
-
-            return `
-                <div class="px-4 pb-24 grid gap-4">
-                    ${filtered.map(item => `
-                        <div onclick="openItem(${item.id})" class="bg-white dark:bg-darkCard rounded-3xl p-3 shadow-sm active:scale-[0.98] transition-transform cursor-pointer">
-                            <div class="relative h-44 w-full mb-3">
-                                <img src="${item.image}" class="w-full h-full object-cover rounded-2xl" loading="lazy">
-                                <div class="absolute top-3 right-3 bg-white/90 dark:bg-black/60 backdrop-blur px-2 py-1 rounded-lg text-xs font-bold flex items-center gap-1">
-                                    <i data-lucide="star" class="w-3 h-3 text-yellow-500 fill-yellow-500"></i>
-                                    ${item.rating}
-                                </div>
-                            </div>
-                            <div class="px-1 mb-2">
-                                <div class="flex justify-between items-start">
-                                    <div>
-                                        <h3 class="font-bold text-lg leading-tight text-gray-900 dark:text-gray-100">${item.title}</h3>
-                                        <p class="text-xs text-gray-400 mt-1 uppercase font-semibold tracking-wide">${item.partner}</p>
-                                    </div>
-                                    <div class="text-right">
-                                        <span class="block font-bold text-primary text-lg">${item.price} ${state.city.currency}</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    `).join('')}
-                </div>
-            `;
-        }
-
-        // --- ЛОГИКА ---
-        function setLang(l) { state.lang = l; render(); }
-        function setCity(id) { state.city = CITIES.find(c => c.id === id); render(); }
-        function finishOnboarding() { state.isOnboarding = false; render(); }
-        function toggleTheme() { state.theme = state.theme === 'light' ? 'dark' : 'light'; applyTheme(); render(); }
-        function setCategory(id) { state.category = id; state.tier = 'all'; render(); }
-        function setTier(t) { state.tier = t; render(); }
-
-        // --- МОДАЛЬНОЕ ОКНО (ДЕТАЛИ) ---
-        let currentItem = null;
-        let daysCount = 1;
-
-        function openItem(id) {
-            currentItem = ITEMS.find(i => i.id === id);
-            daysCount = 1;
-            const t = TRANSLATIONS[state.lang];
-            const modal = document.getElementById('modal-container');
-            const content = document.getElementById('modal-content');
-
-            content.innerHTML = `
-                <div class="relative h-72">
-                    <img src="${currentItem.image}" class="w-full h-full object-cover">
-                    <button onclick="closeModal()" class="absolute top-4 right-4 bg-black/50 text-white p-2 rounded-full backdrop-blur">
-                        <i data-lucide="x" class="w-6 h-6"></i>
-                    </button>
-                </div>
-                
-                <div class="p-6 pb-10">
-                    <div class="flex justify-between items-start mb-4">
-                        <div>
-                            <span class="text-[10px] font-bold text-primary bg-blue-100 dark:bg-blue-900/30 px-2 py-1 rounded uppercase tracking-wider">${currentItem.tier}</span>
-                            <h2 class="text-3xl font-bold mt-2">${currentItem.title}</h2>
-                        </div>
-                        <div class="text-right">
-                            <span class="text-2xl font-bold text-primary">${currentItem.price} <span class="text-sm text-gray-500">${state.city.currency}</span></span>
-                        </div>
-                    </div>
-
-                    <div class="bg-gray-50 dark:bg-gray-800 p-4 rounded-2xl mb-6 flex items-center gap-4">
-                        <div class="w-10 h-10 bg-gray-200 dark:bg-gray-700 rounded-full flex items-center justify-center">
-                            <i data-lucide="briefcase" class="w-5 h-5 text-gray-500"></i>
-                        </div>
-                        <div>
-                            <p class="text-xs text-gray-400 uppercase font-bold">Partner</p>
-                            <p class="font-bold">${currentItem.partner}</p>
-                        </div>
-                    </div>
-
-                    ${currentItem.type !== 'food' ? `
-                    <div class="mb-8">
-                        <label class="block text-sm font-bold text-gray-500 mb-3">${t.days}</label>
-                        <div class="flex items-center justify-between bg-gray-100 dark:bg-gray-800 p-2 rounded-2xl">
-                            <button onclick="changeDays(-1)" class="w-12 h-12 flex items-center justify-center bg-white dark:bg-gray-700 rounded-xl shadow-sm text-xl font-bold">-</button>
-                            <span id="days-display" class="font-bold text-2xl">${daysCount}</span>
-                            <button onclick="changeDays(1)" class="w-12 h-12 flex items-center justify-center bg-white dark:bg-gray-700 rounded-xl shadow-sm text-xl font-bold">+</button>
-                        </div>
-                    </div>
-                    ` : ''}
-
-                    <div class="border-t dark:border-gray-700 pt-6">
-                        <div class="flex justify-between items-center mb-4">
-                            <span class="text-gray-500 font-medium">${t.total}:</span>
-                            <span id="total-price" class="text-3xl font-bold">${currentItem.price} ${state.city.currency}</span>
-                        </div>
-                        <button onclick="doBook()" class="w-full bg-primary text-white py-4 rounded-xl font-bold text-xl shadow-lg active:scale-95 transition-transform">
-                            ${t.book}
+                         <button onclick="processPayment('cash')" class="flex items-center gap-4 p-4 rounded-xl bg-green-600 text-white font-bold justify-center shadow-lg active:scale-95 transition">
+                             <i data-lucide="banknote" class="w-5 h-5"></i> Cash / Crypto
                         </button>
                     </div>
+                    
+                    <button onclick="openDetails(${state.booking.itemId})" class="text-gray-400 text-sm">Cancel</button>
                 </div>
             `;
-            
             lucide.createIcons();
-            modal.classList.remove('hidden');
-            tg.BackButton.show();
+        }
+
+        function processPayment(method) {
+            // Имитация загрузки
+            const modal = document.getElementById('modal-panel');
+            modal.innerHTML = `
+                <div class="h-[50vh] flex flex-col items-center justify-center">
+                    <div class="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4"></div>
+                    <p class="text-gray-500 font-bold">Processing...</p>
+                </div>
+            `;
+
+            setTimeout(() => {
+                const t = TEXT[state.lang];
+                modal.innerHTML = `
+                    <div class="h-[50vh] flex flex-col items-center justify-center text-center p-6 animate-fadeIn">
+                        <div class="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mb-6 text-green-600">
+                            <i data-lucide="check" class="w-10 h-10"></i>
+                        </div>
+                        <h2 class="text-2xl font-bold mb-2 dark:text-white">${t.success}</h2>
+                        <p class="text-gray-500 mb-8">Manager will contact you at ${state.booking.form.phone}</p>
+                        <button onclick="closeModal()" class="bg-gray-200 dark:bg-gray-700 px-8 py-3 rounded-xl font-bold dark:text-white">Close</button>
+                    </div>
+                `;
+                lucide.createIcons();
+                
+                // ОТПРАВКА ДАННЫХ В БОТА
+                // tg.sendData(JSON.stringify({...state.booking, method}));
+                
+            }, 1500);
         }
 
         function closeModal() {
-            document.getElementById('modal-container').classList.add('hidden');
+            document.getElementById('modal-backdrop').classList.add('hidden');
+            document.getElementById('modal-panel').classList.add('hidden');
             tg.BackButton.hide();
         }
 
-        function changeDays(delta) {
-            if (daysCount + delta < 1) return;
-            daysCount += delta;
-            document.getElementById('days-display').innerText = daysCount;
-            document.getElementById('total-price').innerText = (currentItem.price * daysCount) + ' ' + state.city.currency;
-        }
-
-        function doBook() {
-            const t = TRANSLATIONS[state.lang];
-            tg.showPopup({
-                title: t.success,
-                message: `${t.success_desc}\nOrder: ${currentItem.title} (${daysCount} days)`,
-                buttons: [{type: "ok"}]
-            }, () => {
-                closeModal();
-            });
-        }
-
-        // Запуск
+        // START
         init();
-
     </script>
 </body>
 </html>
